@@ -362,6 +362,11 @@ const PreviewPlayer: React.FC<PreviewPlayerProps> = ({ project, isExportMode = f
   const startExport = async () => {
       if (!canvasRef.current || !audioContextRef.current) return;
       
+      // Ensure Audio Context is active
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+
       // 1. Setup Recording
       const canvasStream = canvasRef.current.captureStream(30);
       const ctx = audioContextRef.current;
@@ -373,7 +378,24 @@ const PreviewPlayer: React.FC<PreviewPlayerProps> = ({ project, isExportMode = f
       ];
       const combinedStream = new MediaStream(tracks);
 
-      mediaRecorderRef.current = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+      // Robust MimeType Selection
+      const mimeType = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+      ].find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+
+      try {
+        mediaRecorderRef.current = new MediaRecorder(combinedStream, { 
+            mimeType,
+            videoBitsPerSecond: 5000000 // 5 Mbps
+        });
+      } catch (e) {
+          console.error("Failed to init MediaRecorder with preferred settings, trying default", e);
+          // Fallback
+          mediaRecorderRef.current = new MediaRecorder(combinedStream);
+      }
+
       recordedChunksRef.current = [];
 
       mediaRecorderRef.current.ondataavailable = (e) => {
@@ -383,6 +405,10 @@ const PreviewPlayer: React.FC<PreviewPlayerProps> = ({ project, isExportMode = f
       };
 
       mediaRecorderRef.current.onstop = () => {
+          if (recordedChunksRef.current.length === 0) {
+              alert("Erro: O arquivo de vídeo está vazio. Tente novamente.");
+              return;
+          }
           const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
