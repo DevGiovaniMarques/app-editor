@@ -1,0 +1,7 @@
+{
+  "name": "NeonCutt Video Editor",
+  "description": "A simple, dark-themed video editor with AI capabilities.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
